@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+
+{% block title %}Record Delivery Attempt - {{ order.order_id }}{% endblock %}
+
+{% block page_title %}Record Delivery Attempt - {{ order.order_id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Record Delivery Attempt</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Order Info -->
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle"></i> Order Information</h6>
+                        <p class="mb-1"><strong>Order ID:</strong> {{ order.order_id }}</p>
+                        <p class="mb-1"><strong>Customer:</strong> {{ order.customer_name }}</p>
+                        <p class="mb-1"><strong>Address:</strong> {{ order.customer_address }}</p>
+                        <p class="mb-0"><strong>Previous Attempts:</strong> {{ previous_attempts_count }}</p>
+                    </div>
+                    
+                    <!-- Attempt Form -->
+                    <form method="POST" id="deliveryAttemptForm">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Attempt Status *</label>
+                            <div class="btn-group-vertical w-100" role="group">
+                                <input type="radio" class="btn-check" name="status" id="status_success" value="successful" required>
+                                <label class="btn btn-outline-success mb-2" for="status_success">
+                                    <i class="bi bi-check-circle"></i> Successful Delivery
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="status" id="status_failed" value="failed">
+                                <label class="btn btn-outline-danger mb-2" for="status_failed">
+                                    <i class="bi bi-x-circle"></i> Failed Delivery
+                                </label>
+                                
+                                <input type="radio" class="btn-check" name="status" id="status_rescheduled" value="rescheduled">
+                                <label class="btn btn-outline-warning" for="status_rescheduled">
+                                    <i class="bi bi-calendar-check"></i> Rescheduled
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                      placeholder="Add details about the delivery attempt..."></textarea>
+                        </div>
+                        
+                        <!-- GPS Section -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-geo-alt"></i> Location Tracking</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-2">
+                                    <button type="button" class="btn btn-outline-primary" onclick="getCurrentLocation()">
+                                        <i class="bi bi-geo-fill"></i> Get Current Location
+                                    </button>
+                                    <small class="text-muted ms-2">Optional but recommended</small>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label for="latitude" class="form-label">Latitude</label>
+                                        <input type="number" step="any" class="form-control" id="latitude" name="latitude">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="longitude" class="form-label">Longitude</label>
+                                        <input type="number" step="any" class="form-control" id="longitude" name="longitude">
+                                    </div>
+                                </div>
+                                <div id="locationStatus" class="mt-2"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Photo Upload (Optional) -->
+                        <div class="mb-3">
+                            <label for="photo" class="form-label">Delivery Proof Photo (Optional)</label>
+                            <input type="file" class="form-control" id="photo" name="photo" accept="image/*">
+                            <small class="text-muted">Take a photo of the delivered package or customer signature</small>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'delivery_attempts' order.id %}" class="btn btn-secondary me-md-2">
+                                <i class="bi bi-arrow-left"></i> Back
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Save Delivery Attempt
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function getCurrentLocation() {
+    const statusDiv = document.getElementById('locationStatus');
+    
+    if (!navigator.geolocation) {
+        statusDiv.innerHTML = '<div class="alert alert-warning">Geolocation is not supported by your browser</div>';
+        return;
+    }
+    
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-gear"></i> Getting location...</div>';
+    
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            
+            document.getElementById('latitude').value = lat.toFixed(6);
+            document.getElementById('longitude').value = lng.toFixed(6);
+            
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> Location captured successfully!
+                    <div class="mt-1 small">
+                        Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}
+                    </div>
+                </div>
+            `;
+        },
+        function(error) {
+            let message = '';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    message = 'User denied the request for Geolocation.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    message = 'Location information is unavailable.';
+                    break;
+                case error.TIMEOUT:
+                    message = 'The request to get user location timed out.';
+                    break;
+                case error.UNKNOWN_ERROR:
+                    message = 'An unknown error occurred.';
+                    break;
+            }
+            statusDiv.innerHTML = `<div class="alert alert-danger">${message}</div>`;
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+        }
+    );
+}
+
+// Auto-select status based on previous attempts
+document.addEventListener('DOMContentLoaded', function() {
+    const previousAttempts = {{ previous_attempts_count }};
+    if (previousAttempts >= 2) {
+        document.getElementById('status_failed').checked = true;
+    }
+});
+</script>
+{% endblock %}

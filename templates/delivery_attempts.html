@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+
+{% block title %}Delivery Attempts - {{ order.order_id }}{% endblock %}
+
+{% block page_title %}Delivery Attempts - {{ order.order_id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Order Info -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Order Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Order ID:</strong> {{ order.order_id }}</p>
+                    <p><strong>Customer:</strong> {{ order.customer_name }}</p>
+                    <p><strong>Address:</strong> {{ order.customer_address }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Status:</strong> <span class="badge bg-{{ order.status|yesno:'success,warning' }}">{{ order.status|title }}</span></p>
+                    <p><strong>Assigned Agent:</strong> {{ order.assigned_to.name|default:"Not Assigned" }}</p>
+                    <p><strong>Priority:</strong> 
+                        {% for i in "12345" %}
+                            {% if i|add:0 <= order.priority %}
+                                <i class="bi bi-star-fill text-warning"></i>
+                            {% else %}
+                                <i class="bi bi-star text-muted"></i>
+                            {% endif %}
+                        {% endfor %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delivery Attempts List -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Delivery Attempts</h5>
+            {% if request.user.role == 'agent' and order.assigned_to.user == request.user and order.status != 'delivered' %}
+            <a href="{% url 'create_delivery_attempt' order.id %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Record New Attempt
+            </a>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            {% if attempts %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Date & Time</th>
+                            <th>Agent</th>
+                            <th>Status</th>
+                            <th>Notes</th>
+                            <th>Location</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for attempt in attempts %}
+                        <tr>
+                            <td>{{ attempt.attempt_number }}</td>
+                            <td>{{ attempt.attempted_at|date:"d M Y H:i" }}</td>
+                            <td>{{ attempt.agent.name }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if attempt.status == 'successful' %}bg-success
+                                    {% elif attempt.status == 'failed' %}bg-danger
+                                    {% else %}bg-warning{% endif %}">
+                                    {{ attempt.status|title }}
+                                </span>
+                            </td>
+                            <td>{{ attempt.notes|truncatechars:50 }}</td>
+                            <td>
+                                {% if attempt.latitude and attempt.longitude %}
+                                <a href="https://maps.google.com/?q={{ attempt.latitude }},{{ attempt.longitude }}" 
+                                   target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-geo-alt"></i> View
+                                </a>
+                                {% else %}
+                                <span class="text-muted">No GPS</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-info" 
+                                        onclick="showAttemptDetails({{ attempt.id }})">
+                                    <i class="bi bi-eye"></i> Details
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-truck display-1 text-muted"></i>
+                <h4 class="mt-3">No Delivery Attempts Yet</h4>
+                <p class="text-muted">No delivery attempts have been recorded for this order.</p>
+                {% if request.user.role == 'agent' and order.assigned_to.user == request.user %}
+                <a href="{% url 'create_delivery_attempt' order.id %}" class="btn btn-primary mt-3">
+                    <i class="bi bi-plus-circle"></i> Record First Attempt
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Attempt Details -->
+<div class="modal fade" id="attemptDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Delivery Attempt Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="attemptDetailsContent">
+                <!-- Details will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function showAttemptDetails(attemptId) {
+    // Load attempt details via AJAX
+    fetch(`/api/delivery-attempt/${attemptId}/`)
+        .then(response => response.json())
+        .then(data => {
+            const modalContent = document.getElementById('attemptDetailsContent');
+            modalContent.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Attempt Number:</strong> ${data.attempt_number}</p>
+                        <p><strong>Date & Time:</strong> ${new Date(data.attempted_at).toLocaleString()}</p>
+                        <p><strong>Agent:</strong> ${data.agent_name}</p>
+                        <p><strong>Status:</strong> 
+                            <span class="badge ${data.status === 'successful' ? 'bg-success' : data.status === 'failed' ? 'bg-danger' : 'bg-warning'}">
+                                ${data.status.charAt(0).toUpperCase() + data.status.slice(1)}
+                            </span>
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        ${data.latitude && data.longitude ? `
+                            <p><strong>Location:</strong></p>
+                            <div class="mb-2">
+                                <a href="https://maps.google.com/?q=${data.latitude},${data.longitude}" 
+                                   target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-geo-alt"></i> View on Google Maps
+                                </a>
+                            </div>
+                            <p><strong>Coordinates:</strong><br>
+                            Latitude: ${data.latitude}<br>
+                            Longitude: ${data.longitude}</p>
+                        ` : '<p><strong>Location:</strong> Not recorded</p>'}
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <p><strong>Notes:</strong></p>
+                        <div class="border rounded p-3 bg-light">
+                            ${data.notes || 'No notes provided.'}
+                        </div>
+                    </div>
+                </div>
+                ${data.photo_url ? `
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <p><strong>Delivery Proof:</strong></p>
+                        <img src="${data.photo_url}" class="img-fluid rounded" alt="Delivery proof">
+                    </div>
+                </div>
+                ` : ''}
+            `;
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('attemptDetailsModal'));
+            modal.show();
+        })
+        .catch(error => {
+            console.error('Error loading attempt details:', error);
+            alert('Failed to load attempt details');
+        });
+}
+</script>
+{% endblock %}

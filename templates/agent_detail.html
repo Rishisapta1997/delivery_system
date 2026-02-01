@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="content-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-person-circle"></i> {{ agent.name }}</h4>
+            <p class="text-muted mb-0">{{ agent.employee_id }} • {{ agent.warehouse.name }}</p>
+        </div>
+        <div>
+            <a href="{% url 'agents' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Agents
+            </a>
+            <a href="/admin/delivery/agent/{{ agent.id }}/change/" class="btn btn-custom ms-2" target="_blank">
+                <i class="bi bi-pencil"></i> Edit Agent
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Agent Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th>Name:</th>
+                        <td>{{ agent.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Employee ID:</th>
+                        <td>{{ agent.employee_id }}</td>
+                    </tr>
+                    <tr>
+                        <th>Warehouse:</th>
+                        <td>{{ agent.warehouse.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Phone:</th>
+                        <td>{{ agent.phone_number }}</td>
+                    </tr>
+                    <tr>
+                        <th>Email:</th>
+                        <td>{{ agent.email }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            {% if agent.is_active %}
+                                {% if agent.checkin_time %}
+                                <span class="badge bg-success">Active & Checked-in</span>
+                                {% else %}
+                                <span class="badge bg-warning">Active (Not Checked-in)</span>
+                                {% endif %}
+                            {% else %}
+                            <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if agent.checkin_time %}
+                    <tr>
+                        <th>Check-in Time:</th>
+                        <td>{{ agent.checkin_time }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if agent.checkout_time %}
+                    <tr>
+                        <th>Check-out Time:</th>
+                        <td>{{ agent.checkout_time }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Performance Summary (Last 7 Days)</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <h3 class="text-primary">{{ total_orders }}</h3>
+                            <small class="text-muted">Total Orders</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <h3 class="text-success">₹{{ total_earnings|floatformat:0 }}</h3>
+                            <small class="text-muted">Total Earnings</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <h3 class="text-info">{{ total_distance|floatformat:1 }}</h3>
+                            <small class="text-muted">Total Distance (km)</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3">
+                            <h3 class="text-warning">{{ avg_daily_orders }}</h3>
+                            <small class="text-muted">Avg Daily Orders</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <h6>Performance Tier: <span class="badge {% if performance_tier == 'High' %}bg-success{% elif performance_tier == 'Medium' %}bg-warning{% else %}bg-primary{% endif %}">
+                        {{ performance_tier }}
+                    </span></h6>
+                    
+                    <div class="progress progress-custom mt-2">
+                        {% if avg_daily_orders >= 50 %}
+                        <div class="progress-bar bg-success" role="progressbar" style="width: 100%">
+                            High Performer (50+ orders/day)
+                        </div>
+                        {% elif avg_daily_orders >= 25 %}
+                        <div class="progress-bar bg-warning" role="progressbar" style="width: {% widthratio avg_daily_orders 50 100 %}%">
+                            Medium Performer (25-49 orders/day)
+                        </div>
+                        {% else %}
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: {% widthratio avg_daily_orders 25 100 %}%">
+                            Base Level (&lt;25 orders/day)
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-4 text-center">
+                            <small class="text-muted">Base</small>
+                            <br>
+                            <small>₹500 minimum</small>
+                        </div>
+                        <div class="col-4 text-center">
+                            <small class="text-muted">Medium</small>
+                            <br>
+                            <small>₹35/order</small>
+                        </div>
+                        <div class="col-4 text-center">
+                            <small class="text-muted">High</small>
+                            <br>
+                            <small>₹42/order</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Daily Performance Trend</h5>
+    </div>
+    <div class="card-body">
+        <canvas id="dailyPerformanceChart" height="150"></canvas>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Recent Assignments</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Order ID</th>
+                        <th>Customer</th>
+                        <th>Distance</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for assignment in recent_assignments %}
+                    <tr>
+                        <td>{{ assignment.assignment_date }}</td>
+                        <td>{{ assignment.order.order_id }}</td>
+                        <td>{{ assignment.order.customer_name }}</td>
+                        <td>{{ assignment.distance_from_warehouse|floatformat:1 }} km</td>
+                        <td>
+                            <span class="status-badge status-{{ assignment.order.status }}">
+                                {{ assignment.order.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{% url 'order_detail' assignment.order.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <i class="bi bi-inbox display-4 text-muted"></i>
+                            <p class="mt-2">No assignments found</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Daily Metrics History</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Orders</th>
+                        <th>Distance (km)</th>
+                        <th>Working Hours</th>
+                        <th>Earnings (₹)</th>
+                        <th>Assigned</th>
+                        <th>Delivered</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for metric in daily_metrics %}
+                    <tr>
+                        <td>{{ metric.date }}</td>
+                        <td>{{ metric.total_orders }}</td>
+                        <td>{{ metric.total_distance|floatformat:1 }}</td>
+                        <td>{{ metric.total_working_hours|floatformat:1 }}</td>
+                        <td>₹{{ metric.total_earnings|floatformat:0 }}</td>
+                        <td>{{ metric.orders_assigned }}</td>
+                        <td>{{ metric.orders_delivered }}</td>
+                        <td>
+                            {% if metric.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <i class="bi bi-calendar display-4 text-muted"></i>
+                            <p class="mt-2">No daily metrics recorded</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+    const performanceCtx = document.getElementById('dailyPerformanceChart').getContext('2d');
+    const dates = [{% for metric in daily_metrics %}'{{ metric.date|date:"M d" }}',{% endfor %}];
+    const ordersData = [{% for metric in daily_metrics %}{{ metric.total_orders }},{% endfor %}];
+    const earningsData = [{% for metric in daily_metrics %}{{ metric.total_earnings }},{% endfor %}];
+    
+    new Chart(performanceCtx, {
+        type: 'bar',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: 'Orders',
+                    data: ordersData,
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Earnings (₹)',
+                    data: earningsData,
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                    type: 'line',
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Orders'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Earnings (₹)'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

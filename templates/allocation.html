@@ -1,0 +1,300 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="content-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-gear"></i> Order Allocation</h4>
+            <p class="text-muted mb-0">Automatically assign orders to agents based on constraints</p>
+        </div>
+        <div>
+            <button class="btn btn-success" onclick="runAllocation('all')">
+                <i class="bi bi-play-circle"></i> Run Allocation for All Warehouses
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    {% for status in warehouse_status %}
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h5 class="card-title">{{ status.warehouse.name }}</h5>
+                        <p class="text-muted mb-1">{{ status.warehouse.address|truncatechars:30 }}</p>
+                    </div>
+                    <span class="badge {% if status.can_allocate %}bg-success{% else %}bg-secondary{% endif %}">
+                        {% if status.can_allocate %}Ready{% else %}Not Ready{% endif %}
+                    </span>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-6">
+                        <small class="text-muted">Agents Checked-in</small>
+                        <h5>{{ status.checked_in_agents }}</h5>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Pending Orders</small>
+                        <h5>{{ status.pending_orders }}</h5>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-6">
+                        <small class="text-muted">Assigned Today</small>
+                        <h5>{{ status.assigned_today }}</h5>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Can Allocate</small>
+                        <div class="mt-2">
+                            {% if status.can_allocate %}
+                            <span class="badge bg-success">Yes</span>
+                            {% else %}
+                            <span class="badge bg-danger">No</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <button class="btn btn-outline-primary w-100" 
+                            onclick="runAllocation('{{ status.warehouse.id }}')"
+                            {% if not status.can_allocate %}disabled{% endif %}>
+                        <i class="bi bi-gear"></i> Allocate Orders
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-sliders"></i> Allocation Controls
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-group mb-3">
+                    <label class="form-label">Max Working Hours</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" value="{{ allocator.MAX_WORKING_HOURS }}" disabled>
+                        <span class="input-group-text">hours</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group mb-3">
+                    <label class="form-label">Max Distance</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" value="{{ allocator.MAX_DISTANCE_KM }}" disabled>
+                        <span class="input-group-text">km</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group mb-3">
+                    <label class="form-label">Travel Time Ratio</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" value="{{ allocator.KM_TO_MINUTES }}" disabled>
+                        <span class="input-group-text">min/km</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title">Payment Tiers</h6>
+                        <ul class="list-unstyled mb-0">
+                            <li class="mb-2">
+                                <i class="bi bi-currency-rupee text-success"></i>
+                                <strong>50+ orders:</strong> ₹42/order
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-currency-rupee text-warning"></i>
+                                <strong>25-49 orders:</strong> ₹35/order
+                            </li>
+                            <li>
+                                <i class="bi bi-currency-rupee text-primary"></i>
+                                <strong>Below 25:</strong> Minimum ₹500
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title">Allocation Algorithm Logic</h6>
+                        <ol class="mb-0">
+                            <li>Checks agent availability and constraints</li>
+                            <li>Calculates distance using Haversine formula</li>
+                            <li>Prioritizes orders by distance and priority</li>
+                            <li>Balances load across available agents</li>
+                            <li>Ensures minimum earnings of ₹500 per agent</li>
+                            <li>Deferred orders are carried over to next day</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-clock-history"></i> Recent Allocations
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Agent</th>
+                        <th>Order</th>
+                        <th>Warehouse</th>
+                        <th>Distance</th>
+                        <th>Estimated Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for allocation in recent_allocations %}
+                    <tr>
+                        <td>
+                            <small>{{ allocation.assigned_at|date:"M d" }}</small>
+                            <br>
+                            <small class="text-muted">{{ allocation.assigned_at|time }}</small>
+                        </td>
+                        <td>
+                            {{ allocation.agent.name }}
+                            <br>
+                            <small class="text-muted">{{ allocation.agent.employee_id }}</small>
+                        </td>
+                        <td>
+                            {{ allocation.order.order_id }}
+                            <br>
+                            <small class="text-muted">{{ allocation.order.customer_name }}</small>
+                        </td>
+                        <td>{{ allocation.agent.warehouse.name }}</td>
+                        <td>
+                            <span class="badge bg-info">
+                                {{ allocation.distance_from_warehouse|floatformat:1 }} km
+                            </span>
+                        </td>
+                        <td>{{ allocation.estimated_delivery_time }} min</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <i class="bi bi-inbox display-4 text-muted"></i>
+                            <p class="mt-2">No allocations yet</p>
+                            <p class="text-muted">Run allocation to see assignments here</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="allocationLog" class="mt-4" style="display: none;">
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Allocation Log</h5>
+        </div>
+        <div class="card-body">
+            <div id="logContent" style="max-height: 300px; overflow-y: auto;">
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+    function runAllocation(warehouseId) {
+        const button = event.target;
+        const originalText = button.innerHTML;
+        
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+        button.disabled = true;
+        
+        document.getElementById('allocationLog').style.display = 'block';
+        const logContent = document.getElementById('logContent');
+        logContent.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div></div>';
+        
+        fetch('{% url "start_allocation" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `warehouse_id=${warehouseId}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                logContent.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> ${data.message}
+                    </div>
+                    <div class="text-center">
+                        <button class="btn btn-primary" onclick="location.reload()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh Page
+                        </button>
+                    </div>
+                `;
+                showToast('success', 'Allocation completed successfully');
+            } else {
+                logContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> ${data.message}
+                    </div>
+                `;
+                showToast('danger', 'Allocation failed: ' + data.message);
+            }
+        })
+        .catch(error => {
+            logContent.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> Network error: ${error}
+                </div>
+            `;
+            showToast('danger', 'Network error occurred');
+        })
+        .finally(() => {
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }, 3000);
+        });
+    }
+    
+    function updateAllocationStatus() {
+        fetch('{% url "allocation" %}?partial=1')
+        .then(response => response.text())
+        .then(html => {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const newStatus = tempDiv.querySelector('.row.mb-4');
+            if (newStatus) {
+                document.querySelector('.row.mb-4').outerHTML = newStatus.outerHTML;
+            }
+        });
+    }
+    
+    setInterval(updateAllocationStatus, 30000);
+</script>
+{% endblock %}
+{% endblock %}

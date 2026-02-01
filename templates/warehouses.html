@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="content-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-building"></i> Warehouses Management</h4>
+            <p class="text-muted mb-0">Manage warehouse locations and capacity</p>
+        </div>
+        <div>
+            <a href="/admin/delivery/warehouse/add/" class="btn btn-custom" target="_blank">
+                <i class="bi bi-plus-circle"></i> Add New Warehouse
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    {% for warehouse in warehouses %}
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="card-title">{{ warehouse.name }}</h5>
+                        <p class="text-muted mb-0">{{ warehouse.address|truncatechars:40 }}</p>
+                    </div>
+                    <span class="badge bg-primary">{{ warehouse.capacity }} capacity</span>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <small class="text-muted">Coordinates</small>
+                        <p class="mb-0">
+                            <i class="bi bi-geo-alt"></i> 
+                            {{ warehouse.latitude|floatformat:4 }}, {{ warehouse.longitude|floatformat:4 }}
+                        </p>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Created</small>
+                        <p class="mb-0">
+                            <i class="bi bi-calendar"></i> 
+                            {{ warehouse.created_at|date:"M d, Y" }}
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="border-top pt-3">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <h5 class="mb-0">{{ warehouse.agent_count }}</h5>
+                            <small class="text-muted">Agents</small>
+                        </div>
+                        <div class="col-4">
+                            <h5 class="mb-0">{{ warehouse.order_count }}</h5>
+                            <small class="text-muted">Today's Orders</small>
+                        </div>
+                        <div class="col-4">
+                            <h5 class="mb-0">{{ warehouse.assigned_orders }}</h5>
+                            <small class="text-muted">Assigned</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Utilization</span>
+                        <span class="text-primary">
+                            {% widthratio warehouse.assigned_orders warehouse.order_count 100 %}%
+                        </span>
+                    </div>
+                    <div class="progress progress-custom">
+                        <div class="progress-bar bg-primary" role="progressbar" 
+                             style="width: {% widthratio warehouse.assigned_orders warehouse.order_count 100 %}%"
+                             aria-valuenow="{% widthratio warehouse.assigned_orders warehouse.order_count 100 %}" 
+                             aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-3 d-flex justify-content-between">
+                    <a href="/admin/delivery/warehouse/{{ warehouse.id }}/change/" 
+                       class="btn btn-sm btn-outline-secondary" target="_blank">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <a href="{% url 'allocation' %}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-gear"></i> Allocate Orders
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-building display-4 text-muted"></i>
+                <h4 class="mt-3">No Warehouses Found</h4>
+                <p class="text-muted">Add your first warehouse to get started</p>
+                <a href="/admin/delivery/warehouse/add/" class="btn btn-primary" target="_blank">
+                    <i class="bi bi-plus-circle"></i> Add Warehouse
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-map"></i> Warehouse Locations
+        </h5>
+    </div>
+    <div class="card-body">
+        <div id="map" style="height: 400px; border-radius: 8px; background-color: #f8f9fa;">
+            <div class="text-center py-5">
+                <i class="bi bi-map display-4 text-muted"></i>
+                <p class="mt-3 text-muted">Map visualization would show warehouse locations here</p>
+                <small class="text-muted">
+                    Coordinates are stored for distance calculations
+                </small>
+            </div>
+        </div>
+        <div class="row mt-3">
+            {% for warehouse in warehouses %}
+            <div class="col-md-3">
+                <div class="border rounded p-2 mb-2">
+                    <small class="text-muted">{{ warehouse.name }}</small>
+                    <br>
+                    <small>
+                        <i class="bi bi-geo-alt"></i> 
+                        {{ warehouse.latitude|floatformat:4 }}, {{ warehouse.longitude|floatformat:4 }}
+                    </small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Capacity Overview</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="capacityChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="card-title mb-0">Order Distribution</h6>
+            </div>
+            <div class="card-body">
+                <canvas id="orderDistributionChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+    const capacityCtx = document.getElementById('capacityChart').getContext('2d');
+    const warehouseNames = [{% for w in warehouses %}'{{ w.name|escapejs }}',{% endfor %}];
+    const capacities = [{% for w in warehouses %}{{ w.capacity }},{% endfor %}];
+    const agentCounts = [{% for w in warehouses %}{{ w.agent_count }},{% endfor %}];
+    
+    new Chart(capacityCtx, {
+        type: 'bar',
+        data: {
+            labels: warehouseNames,
+            datasets: [
+                {
+                    label: 'Capacity',
+                    data: capacities,
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Active Agents',
+                    data: agentCounts,
+                    backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Count'
+                    }
+                }
+            }
+        }
+    });
+    
+    const distributionCtx = document.getElementById('orderDistributionChart').getContext('2d');
+    const orderCounts = [{% for w in warehouses %}{{ w.order_count }},{% endfor %}];
+    const assignedOrders = [{% for w in warehouses %}{{ w.assigned_orders }},{% endfor %}];
+    
+    new Chart(distributionCtx, {
+        type: 'line',
+        data: {
+            labels: warehouseNames,
+            datasets: [
+                {
+                    label: 'Total Orders',
+                    data: orderCounts,
+                    backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                    borderColor: 'rgba(255, 206, 86, 1)',
+                    borderWidth: 2,
+                    tension: 0.1
+                },
+                {
+                    label: 'Assigned Orders',
+                    data: assignedOrders,
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 2,
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Orders'
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

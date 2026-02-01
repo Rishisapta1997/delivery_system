@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="content-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-box-seam"></i> Order #{{ order.order_id }}</h4>
+            <p class="text-muted mb-0">{{ order.customer_name }} • {{ order.created_date }}</p>
+        </div>
+        <div>
+            <a href="{% url 'orders' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Orders
+            </a>
+            <a href="/admin/delivery/order/{{ order.id }}/change/" class="btn btn-custom ms-2" target="_blank">
+                <i class="bi bi-pencil"></i> Edit Order
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Order Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th width="40%">Order ID:</th>
+                        <td>{{ order.order_id }}</td>
+                    </tr>
+                    <tr>
+                        <th>Customer:</th>
+                        <td>{{ order.customer_name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Address:</th>
+                        <td>{{ order.customer_address }}</td>
+                    </tr>
+                    <tr>
+                        <th>Coordinates:</th>
+                        <td>
+                            {{ order.customer_latitude|floatformat:6 }}, {{ order.customer_longitude|floatformat:6 }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Warehouse:</th>
+                        <td>{{ order.warehouse.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Weight:</th>
+                        <td>{{ order.weight }} kg</td>
+                    </tr>
+                    <tr>
+                        <th>Priority:</th>
+                        <td>
+                            {% with ''|center:order.priority as range %}
+                            {% for _ in range %}
+                            <i class="bi bi-star-fill text-warning"></i>
+                            {% endfor %}
+                            {% endwith %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Created Date:</th>
+                        <td>{{ order.created_date }}</td>
+                    </tr>
+                    <tr>
+                        <th>Delivery Date:</th>
+                        <td>{{ order.delivery_date|default:"Not scheduled" }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Delivery Information</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th width="40%">Status:</th>
+                        <td>
+                            <span class="status-badge status-{{ order.status }}">
+                                {{ order.get_status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Assigned Agent:</th>
+                        <td>
+                            {% if order.assigned_to %}
+                            <a href="{% url 'agent_detail' order.assigned_to.id %}">
+                                {{ order.assigned_to.name }}
+                            </a>
+                            {% else %}
+                            <span class="text-muted">Not assigned</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if assignment_log %}
+                    <tr>
+                        <th>Assigned Date:</th>
+                        <td>{{ assignment_log.assignment_date }}</td>
+                    </tr>
+                    <tr>
+                        <th>Distance from Warehouse:</th>
+                        <td>{{ assignment_log.distance_from_warehouse|floatformat:1 }} km</td>
+                    </tr>
+                    <tr>
+                        <th>Estimated Delivery Time:</th>
+                        <td>{{ assignment_log.estimated_delivery_time }} minutes</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <th>Distance from Warehouse:</th>
+                        <td>{{ distance|floatformat:1 }} km (calculated)</td>
+                    </tr>
+                    <tr>
+                        <th>Estimated Delivery Time:</th>
+                        <td>{{ estimated_time|floatformat:0 }} minutes</td>
+                    </tr>
+                    {% endif %}
+                </table>
+                
+                <div class="mt-4">
+                    {% if order.status == 'pending' %}
+                    <button class="btn btn-success w-100 mb-2" onclick="assignOrder({{ order.id }})">
+                        <i class="bi bi-person-check"></i> Assign to Available Agent
+                    </button>
+                    {% endif %}
+                    
+                    {% if order.status == 'assigned' %}
+                    <button class="btn btn-primary w-100 mb-2" onclick="updateOrderStatus({{ order.id }}, 'in_transit')">
+                        <i class="bi bi-truck"></i> Mark as In Transit
+                    </button>
+                    {% endif %}
+                    
+                    {% if order.status == 'in_transit' %}
+                    <button class="btn btn-success w-100 mb-2" onclick="updateOrderStatus({{ order.id }}, 'delivered')">
+                        <i class="bi bi-check-circle"></i> Mark as Delivered
+                    </button>
+                    {% endif %}
+                    
+                    {% if order.status == 'deferred' %}
+                    <button class="btn btn-warning w-100 mb-2" onclick="updateOrderStatus({{ order.id }}, 'pending')">
+                        <i class="bi bi-arrow-clockwise"></i> Move Back to Pending
+                    </button>
+                    {% endif %}
+                    
+                    <button class="btn btn-danger w-100" onclick="updateOrderStatus({{ order.id }}, 'cancelled')">
+                        <i class="bi bi-x-circle"></i> Cancel Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Location Details</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Warehouse Location</h6>
+                <p class="mb-1">
+                    <i class="bi bi-building"></i> {{ order.warehouse.name }}
+                </p>
+                <p class="mb-1">
+                    <i class="bi bi-geo-alt"></i> {{ order.warehouse.address }}
+                </p>
+                <p class="mb-0">
+                    <i class="bi bi-geo"></i> 
+                    {{ order.warehouse.latitude|floatformat:6 }}, {{ order.warehouse.longitude|floatformat:6 }}
+                </p>
+            </div>
+            <div class="col-md-6">
+                <h6>Delivery Location</h6>
+                <p class="mb-1">
+                    <i class="bi bi-person"></i> {{ order.customer_name }}
+                </p>
+                <p class="mb-1">
+                    <i class="bi bi-house-door"></i> {{ order.customer_address }}
+                </p>
+                <p class="mb-0">
+                    <i class="bi bi-geo"></i> 
+                    {{ order.customer_latitude|floatformat:6 }}, {{ order.customer_longitude|floatformat:6 }}
+                </p>
+            </div>
+        </div>
+        
+        <div class="mt-4">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i>
+                <strong>Distance Information:</strong> 
+                This order is {{ distance|floatformat:1 }} km from the warehouse. 
+                Estimated travel time is {{ estimated_time|floatformat:0 }} minutes 
+                (based on 5 minutes per km).
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if assignment_log %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Assignment History</h5>
+    </div>
+    <div class="card-body">
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>Assigned Date</th>
+                    <th>Agent</th>
+                    <th>Warehouse</th>
+                    <th>Distance</th>
+                    <th>Estimated Time</th>
+                    <th>Assignment Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{{ assignment_log.assignment_date }}</td>
+                    <td>{{ assignment_log.agent.name }}</td>
+                    <td>{{ assignment_log.agent.warehouse.name }}</td>
+                    <td>{{ assignment_log.distance_from_warehouse|floatformat:1 }} km</td>
+                    <td>{{ assignment_log.estimated_delivery_time }} minutes</td>
+                    <td>{{ assignment_log.assigned_at|date:"M d, Y H:i" }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% block extra_scripts %}
+<script>
+    function assignOrder(orderId) {
+        if (!confirm('Assign this order to an available agent?')) return;
+        
+        fetch(`/api/order/${orderId}/assign/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', data.message);
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showToast('danger', data.message);
+            }
+        })
+        .catch(error => {
+            showToast('danger', 'Error: ' + error);
+        });
+    }
+    
+    function updateOrderStatus(orderId, status) {
+        let message = '';
+        let statusText = '';
+        
+        switch(status) {
+            case 'in_transit':
+                message = 'Mark this order as in transit?';
+                statusText = 'In Transit';
+                break;
+            case 'delivered':
+                message = 'Mark this order as delivered?';
+                statusText = 'Delivered';
+                break;
+            case 'cancelled':
+                message = 'Cancel this order? This action cannot be undone.';
+                statusText = 'Cancelled';
+                break;
+            case 'pending':
+                message = 'Move this order back to pending?';
+                statusText = 'Pending';
+                break;
+        }
+        
+        if (!confirm(message)) return;
+        
+        fetch(`/api/order/${orderId}/status/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ status: status })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', `Order marked as ${statusText}`);
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showToast('danger', data.message);
+            }
+        })
+        .catch(error => {
+            showToast('danger', 'Error: ' + error);
+        });
+    }
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,495 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="content-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-play-circle"></i> Automation Control</h4>
+            <p class="text-muted mb-0">Manage automated services and scheduled tasks</p>
+        </div>
+        <div>
+            {% if all_running %}
+            <span class="badge bg-success me-2">All Systems Running</span>
+            {% else %}
+            <span class="badge bg-danger me-2">Some Systems Stopped</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card {% if services.redis %}border-success{% else %}border-danger{% endif %}">
+            <div class="card-body text-center">
+                <i class="bi bi-hdd-stack display-4 {% if services.redis %}text-success{% else %}text-danger{% endif %}"></i>
+                <h5 class="card-title mt-3">Redis</h5>
+                <p class="card-text">
+                    Message broker for Celery tasks
+                </p>
+                <div class="d-flex justify-content-center">
+                    {% if services.redis %}
+                    <button class="btn btn-sm btn-success me-2" disabled>
+                        <i class="bi bi-play-circle"></i> Running
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="stopService('redis')">
+                        <i class="bi bi-stop-circle"></i> Stop
+                    </button>
+                    {% else %}
+                    <button class="btn btn-sm btn-outline-success" onclick="startService('redis')">
+                        <i class="bi bi-play-circle"></i> Start
+                    </button>
+                    <button class="btn btn-sm btn-danger me-2" disabled>
+                        <i class="bi bi-stop-circle"></i> Stopped
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card {% if services.celery_worker %}border-success{% else %}border-danger{% endif %}">
+            <div class="card-body text-center">
+                <i class="bi bi-gear display-4 {% if services.celery_worker %}text-success{% else %}text-danger{% endif %}"></i>
+                <h5 class="card-title mt-3">Celery Worker</h5>
+                <p class="card-text">
+                    Processes background tasks
+                </p>
+                <div class="d-flex justify-content-center">
+                    {% if services.celery_worker %}
+                    <button class="btn btn-sm btn-success me-2" disabled>
+                        <i class="bi bi-play-circle"></i> Running
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="stopService('celery_worker')">
+                        <i class="bi bi-stop-circle"></i> Stop
+                    </button>
+                    {% else %}
+                    <button class="btn btn-sm btn-outline-success" onclick="startService('celery_worker')">
+                        <i class="bi bi-play-circle"></i> Start
+                    </button>
+                    <button class="btn btn-sm btn-danger me-2" disabled>
+                        <i class="bi bi-stop-circle"></i> Stopped
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card {% if services.celery_beat %}border-success{% else %}border-danger{% endif %}">
+            <div class="card-body text-center">
+                <i class="bi bi-clock display-4 {% if services.celery_beat %}text-success{% else %}text-danger{% endif %}"></i>
+                <h5 class="card-title mt-3">Celery Beat</h5>
+                <p class="card-text">
+                    Schedules periodic tasks
+                </p>
+                <div class="d-flex justify-content-center">
+                    {% if services.celery_beat %}
+                    <button class="btn btn-sm btn-success me-2" disabled>
+                        <i class="bi bi-play-circle"></i> Running
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="stopService('celery_beat')">
+                        <i class="bi bi-stop-circle"></i> Stop
+                    </button>
+                    {% else %}
+                    <button class="btn btn-sm btn-outline-success" onclick="startService('celery_beat')">
+                        <i class="bi bi-play-circle"></i> Start
+                    </button>
+                    <button class="btn btn-sm btn-danger me-2" disabled>
+                        <i class="bi bi-stop-circle"></i> Stopped
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <i class="bi bi-server display-4 text-success"></i>
+                <h5 class="card-title mt-3">Django Server</h5>
+                <p class="card-text">
+                    Web application server
+                </p>
+                <div class="d-flex justify-content-center">
+                    <button class="btn btn-sm btn-success" disabled>
+                        <i class="bi bi-play-circle"></i> Running
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Bulk Actions</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <button class="btn btn-success w-100 mb-2" onclick="startAllServices()">
+                    <i class="bi bi-play-circle"></i> Start All Services
+                </button>
+                <small class="text-muted">Starts Redis, Celery Worker, and Celery Beat</small>
+            </div>
+            <div class="col-md-6">
+                <button class="btn btn-danger w-100 mb-2" onclick="stopAllServices()">
+                    <i class="bi bi-stop-circle"></i> Stop All Services
+                </button>
+                <small class="text-muted">Stops all background services (except Django)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-calendar-event"></i> Scheduled Tasks
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Task Name</th>
+                        <th>Function</th>
+                        <th>Schedule</th>
+                        <th>Next Run</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in scheduled_tasks %}
+                    <tr>
+                        <td>{{ task.name }}</td>
+                        <td>
+                            <small class="text-muted">{{ task.task }}</small>
+                        </td>
+                        <td>Daily at 7:00 AM</td>
+                        <td>
+                            {% if task.next_run %}
+                                {{ task.next_run|date:"M d, Y H:i" }}
+                            {% else %}
+                                Unknown
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if services.celery_beat and services.celery_worker %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick="runTaskNow('{{ task.task }}')">
+                                <i class="bi bi-play"></i> Run Now
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <i class="bi bi-calendar display-4 text-muted"></i>
+                            <p class="mt-2">No scheduled tasks configured</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="mt-4">
+            <h6>Manual Task Execution</h6>
+            <div class="input-group">
+                <select class="form-select" id="taskSelect">
+                    <option value="allocation.tasks.run_daily_allocation">Daily Order Allocation</option>
+                    <option value="allocation.tasks.generate_daily_report">Generate Daily Report</option>
+                    <option value="allocation.tasks.cleanup_old_data">Cleanup Old Data</option>
+                </select>
+                <button class="btn btn-primary" onclick="runSelectedTask()">
+                    <i class="bi bi-play-fill"></i> Run Selected Task
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0">
+            <i class="bi bi-clock-history"></i> Recent Task Executions
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Task ID</th>
+                        <th>Task Name</th>
+                        <th>Status</th>
+                        <th>Started</th>
+                        <th>Completed</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in recent_tasks %}
+                    <tr>
+                        <td>
+                            <small>{{ task.task_id|truncatechars:10 }}</small>
+                        </td>
+                        <td>
+                            <small>{{ task.task_name|truncatechars:30 }}</small>
+                        </td>
+                        <td>
+                            {% if task.status == "SUCCESS" %}
+                            <span class="badge bg-success">{{ task.status }}</span>
+                            {% elif task.status == "FAILURE" %}
+                            <span class="badge bg-danger">{{ task.status }}</span>
+                            {% elif task.status == "PENDING" %}
+                            <span class="badge bg-warning">{{ task.status }}</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ task.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>{{ task.date_created|date:"M d H:i" }}</small>
+                        </td>
+                        <td>
+                            {% if task.date_done %}
+                            <small>{{ task.date_done|date:"M d H:i" }}</small>
+                            {% else %}
+                            <small class="text-muted">-</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if task.result %}
+                            <button class="btn btn-sm btn-outline-info" onclick="showTaskResult('{{ task.task_id }}')">
+                                <i class="bi bi-eye"></i> View
+                            </button>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <i class="bi bi-inbox display-4 text-muted"></i>
+                            <p class="mt-2">No task executions recorded</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="logOutput" class="mt-4" style="display: none;">
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Task Execution Log</h5>
+            <button type="button" class="btn-close" onclick="document.getElementById('logOutput').style.display = 'none';"></button>
+        </div>
+        <div class="card-body">
+            <pre id="logContent" style="max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 5px;">
+            </pre>
+        </div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+    function startService(service) {
+        if (!confirm(`Start ${service} service?`)) return;
+        
+        fetch('{% url "start_service" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `service=${service}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', data.message);
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showToast('danger', data.message);
+            }
+        })
+        .catch(error => {
+            showToast('danger', 'Error: ' + error);
+        });
+    }
+    
+    function stopService(service) {
+        if (!confirm(`Stop ${service} service?`)) return;
+        
+        fetch('{% url "stop_service" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `service=${service}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', data.message);
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showToast('danger', data.message);
+            }
+        })
+        .catch(error => {
+            showToast('danger', 'Error: ' + error);
+        });
+    }
+    
+    function startAllServices() {
+        if (!confirm('Start all background services?')) return;
+        
+        const services = ['redis', 'celery_worker', 'celery_beat'];
+        let promises = [];
+        
+        services.forEach(service => {
+            promises.push(
+                fetch('{% url "start_service" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `service=${service}`
+                })
+            );
+        });
+        
+        Promise.all(promises)
+        .then(responses => Promise.all(responses.map(r => r.json())))
+        .then(results => {
+            const allSuccess = results.every(r => r.success);
+            if (allSuccess) {
+                showToast('success', 'All services started successfully');
+                setTimeout(() => location.reload(), 3000);
+            } else {
+                showToast('warning', 'Some services may not have started');
+            }
+        })
+        .catch(error => {
+            showToast('danger', 'Error: ' + error);
+        });
+    }
+    
+    function stopAllServices() {
+        if (!confirm('Stop all background services? This will stop automated allocations.')) return;
+        
+        const services = ['redis', 'celery_worker', 'celery_beat'];
+        let promises = [];
+        
+        services.forEach(service => {
+            promises.push(
+                fetch('{% url "stop_service" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `service=${service}`
+                })
+            );
+        });
+        
+        Promise.all(promises)
+        .then(responses => Promise.all(responses.map(r => r.json())))
+        .then(results => {
+            const allSuccess = results.every(r => r.success);
+            if (allSuccess) {
+                showToast('success', 'All services stopped successfully');
+                setTimeout(() => location.reload(), 3000);
+            } else {
+                showToast('warning', 'Some services may not have stopped');
+            }
+        })
+        .catch(error => {
+            showToast('danger', 'Error: ' + error);
+        });
+    }
+    
+    function runTaskNow(taskName) {
+        if (!confirm(`Run task "${taskName}" now?`)) return;
+        
+        fetch(`/api/task/run/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ task: taskName })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', `Task scheduled. Task ID: ${data.task_id}`);
+                updateRecentTasks();
+            } else {
+                showToast('danger', data.message);
+            }
+        })
+        .catch(error => {
+            showToast('danger', 'Error: ' + error);
+        });
+    }
+    
+    function runSelectedTask() {
+        const taskName = document.getElementById('taskSelect').value;
+        runTaskNow(taskName);
+    }
+    
+    function showTaskResult(taskId) {
+        fetch(`/api/task/result/${taskId}/`)
+        .then(response => response.json())
+        .then(data => {
+            const logOutput = document.getElementById('logOutput');
+            const logContent = document.getElementById('logContent');
+            
+            logContent.textContent = JSON.stringify(data, null, 2);
+            logOutput.style.display = 'block';
+        })
+        .catch(error => {
+            showToast('danger', 'Error loading task result: ' + error);
+        });
+    }
+    
+    function updateRecentTasks() {
+        fetch('{% url "automation" %}?partial=recent_tasks')
+        .then(response => response.text())
+        .then(html => {
+            setTimeout(() => {
+                location.reload();
+            }, 5000);
+        });
+    }
+    
+    setInterval(() => {
+        fetch('{% url "automation" %}?partial=status')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Status updated:', data);
+        });
+    }, 10000);
+</script>
+{% endblock %}
+{% endblock %}

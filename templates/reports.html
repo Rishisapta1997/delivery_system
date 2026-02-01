@@ -1,0 +1,426 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="content-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-bar-chart"></i> Reports & Analytics</h4>
+            <p class="text-muted mb-0">Performance metrics and business intelligence</p>
+        </div>
+        <div>
+            <button class="btn btn-custom" onclick="exportToExcel()">
+                <i class="bi bi-file-earmark-excel"></i> Export Report
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Start Date</label>
+                <input type="date" class="form-control" name="start_date" value="{{ start_date_str }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">End Date</label>
+                <input type="date" class="form-control" name="end_date" value="{{ end_date_str }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-filter"></i> Apply
+                </button>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button type="button" class="btn btn-outline-secondary w-100" onclick="setDefaultRange()">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reset
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h6 class="card-title">Total Orders</h6>
+                <h3 class="mb-0">
+                    {{ daily_summaries|sum_attr:"total_orders" }}
+                </h3>
+                <small>{{ start_date }} to {{ end_date }}</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h6 class="card-title">Total Revenue</h6>
+                <h3 class="mb-0">
+                    ₹{{ daily_summaries|sum_attr:"total_earnings"|floatformat:0 }}
+                </h3>
+                <small>Payout to agents</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <h6 class="card-title">Deferred Orders</h6>
+                <h3 class="mb-0">
+                    {{ daily_summaries|sum_attr:"deferred_orders" }}
+                </h3>
+                <small>Carry-over orders</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h6 class="card-title">Avg Cost/Order</h6>
+                <h3 class="mb-0">
+                    ₹{% with total_orders=daily_summaries|sum_attr:"total_orders" total_earnings=daily_summaries|sum_attr:"total_earnings" %}
+                    {% if total_orders > 0 %}
+                    {{ stat.avg_cost_per_order|default:0|floatformat:2 }}
+                    {% else %}0.00{% endif %}
+                    {% endwith %}
+                </h3>
+                <small>Average delivery cost</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Orders & Earnings Trend</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="trendChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Performance Tiers</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="tierChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Warehouse Performance</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Warehouse</th>
+                        <th>Active Agents</th>
+                        <th>Total Orders</th>
+                        <th>Delivered</th>
+                        <th>Total Earnings</th>
+                        <th>Avg Cost/Order</th>
+                        <th>Efficiency</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in warehouse_stats %}
+                    <tr>
+                        <td>{{ stat.name }}</td>
+                        <td>{{ stat.total_agents }}</td>
+                        <td>{{ stat.total_orders }}</td>
+                        <td>{{ stat.delivered_orders }}</td>
+                        <td>₹{{ stat.total_earnings|default:0|floatformat:0 }}</td>
+                        <td>
+                            ₹{% if stat.total_orders > 0 %}
+                            {{ stat.total_earnings|default:0|divide:stat.total_orders|floatformat:2 }}
+                            {% else %}0.00{% endif %}
+                        </td>
+                        <td>
+                            {% widthratio stat.delivered_orders stat.total_orders 100 as efficiency %}
+                            <div class="progress progress-custom">
+                                <div class="progress-bar {% if efficiency >= 80 %}bg-success{% elif efficiency >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                     role="progressbar" style="width: {{ efficiency }}%">
+                                </div>
+                            </div>
+                            <small>{{ efficiency|floatformat:0 }}%</small>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Top Performing Agents</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Agent</th>
+                        <th>Warehouse</th>
+                        <th>Total Orders</th>
+                        <th>Total Earnings</th>
+                        <th>Total Distance</th>
+                        <th>Avg Orders/Day</th>
+                        <th>Performance Tier</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for agent in top_agents %}
+                    <tr>
+                        <td>
+                            <span class="badge {% if forloop.counter == 1 %}bg-warning{% elif forloop.counter <= 3 %}bg-info{% else %}bg-secondary{% endif %}">
+                                #{{ forloop.counter }}
+                            </span>
+                        </td>
+                        <td>
+                            <strong>{{ agent.agent__name }}</strong>
+                            <br>
+                            <small class="text-muted">{{ agent.agent__employee_id }}</small>
+                        </td>
+                        <td>{{ agent.agent__warehouse__name }}</td>
+                        <td>{{ agent.total_orders }}</td>
+                        <td>₹{{ agent.total_earnings|floatformat:0 }}</td>
+                        <td>{{ agent.total_distance|floatformat:1 }} km</td>
+                        <td>{{ agent.avg_orders|floatformat:1 }}</td>
+                        <td>
+                            {% if agent.avg_orders >= 50 %}
+                            <span class="badge bg-success">High (₹42)</span>
+                            {% elif agent.avg_orders >= 25 %}
+                            <span class="badge bg-warning">Medium (₹35)</span>
+                            {% else %}
+                            <span class="badge bg-primary">Base</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <i class="bi bi-bar-chart display-4 text-muted"></i>
+                            <p class="mt-2">No performance data available</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Daily Breakdown</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Agents</th>
+                        <th>Orders</th>
+                        <th>Deferred</th>
+                        <th>Total Distance</th>
+                        <th>Total Earnings</th>
+                        <th>Avg Cost/Order</th>
+                        <th>High Performers</th>
+                        <th>Medium Performers</th>
+                        <th>Low Performers</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for summary in daily_summaries %}
+                    <tr>
+                        <td>{{ summary.report_date }}</td>
+                        <td>{{ summary.total_agents }}</td>
+                        <td>{{ summary.total_orders }}</td>
+                        <td>{{ summary.deferred_orders }}</td>
+                        <td>{{ summary.total_distance_km }} km</td>
+                        <td>₹{{ summary.total_earnings }}</td>
+                        <td>₹{{ summary.cost_per_order }}</td>
+                        <td>{{ summary.high_performers }}</td>
+                        <td>{{ summary.medium_performers }}</td>
+                        <td>{{ summary.low_performers }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    const dates = {{ dates_json|safe }};
+    const ordersData = {{ orders_data_json|safe }};
+    const earningsData = {{ earnings_data_json|safe }};
+    const deferredData = {{ deferred_data_json|safe }};
+    
+    new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    label: 'Orders',
+                    data: ordersData,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    tension: 0.1,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Earnings (₹)',
+                    data: earningsData,
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    tension: 0.1,
+                    yAxisID: 'y1'
+                },
+                {
+                    label: 'Deferred',
+                    data: deferredData,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    tension: 0.1,
+                    yAxisID: 'y'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Orders Count'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Earnings (₹)'
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                }
+            }
+        }
+    });
+    
+    const tierCtx = document.getElementById('tierChart').getContext('2d');
+    
+    let highTotal = 0;
+    let mediumTotal = 0;
+    let lowTotal = 0;
+    
+    {% for summary in daily_summaries %}
+    highTotal += {{ summary.high_performers }};
+    mediumTotal += {{ summary.medium_performers }};
+    lowTotal += {{ summary.low_performers }};
+    {% endfor %}
+    
+    new Chart(tierCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['High Performers', 'Medium Performers', 'Base Level'],
+            datasets: [{
+                data: [highTotal, mediumTotal, lowTotal],
+                backgroundColor: [
+                    'rgba(40, 167, 69, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(108, 117, 125, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(40, 167, 69)',
+                    'rgb(255, 193, 7)',
+                    'rgb(108, 117, 125)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.raw + ' agents';
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    function setDefaultRange() {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - 7);
+        
+        document.querySelector('input[name="start_date"]').value = start.toISOString().split('T')[0];
+        document.querySelector('input[name="end_date"]').value = end.toISOString().split('T')[0];
+        document.querySelector('form').submit();
+    }
+    
+    function exportToExcel() {
+        let csv = 'Date,Agents,Orders,Deferred,Distance (km),Earnings (₹),Cost/Order (₹),High Performers,Medium Performers,Low Performers\n';
+        
+        {% for summary in daily_summaries %}
+        csv += '{{ summary.report_date }},{{ summary.total_agents }},{{ summary.total_orders }},{{ summary.deferred_orders }},{{ summary.total_distance_km }},{{ summary.total_earnings }},{{ summary.cost_per_order }},{{ summary.high_performers }},{{ summary.medium_performers }},{{ summary.low_performers }}\n';
+        {% endfor %}
+        
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'delivery_report_{{ start_date }}_to_{{ end_date }}.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        showToast('success', 'Report exported successfully');
+    }
+</script>
+{% endblock %}
+{% endblock %}

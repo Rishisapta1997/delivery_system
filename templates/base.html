@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Management System - {% block title %}Dashboard{% endblock %}</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-bg: #f8f9fa;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f6fa;
+        }
+        
+        .sidebar {
+            background: linear-gradient(180deg, var(--primary-color) 0%, #1a2530 100%);
+            color: white;
+            min-height: 100vh;
+            box-shadow: 3px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            padding: 12px 20px;
+            margin: 2px 0;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            background-color: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(5px);
+        }
+        
+        .sidebar .nav-link i {
+            width: 24px;
+            text-align: center;
+            margin-right: 10px;
+        }
+        
+        .content-header {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s;
+            margin-bottom: 20px;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card {
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        .stat-card.success {
+            border-left-color: var(--success-color);
+        }
+        
+        .stat-card.warning {
+            border-left-color: var(--warning-color);
+        }
+        
+        .stat-card.danger {
+            border-left-color: var(--danger-color);
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .btn-custom {
+            background: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .btn-custom:hover {
+            background: #2980b9;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-assigned { background: #d1ecf1; color: #0c5460; }
+        .status-delivered { background: #d4edda; color: #155724; }
+        .status-deferred { background: #f8d7da; color: #721c24; }
+        .status-in-transit { background: #cce5ff; color: #004085; }
+        
+        .dashboard-icon {
+            font-size: 2.5rem;
+            color: var(--secondary-color);
+            margin-bottom: 15px;
+        }
+        
+        .highlight-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .progress-custom {
+            height: 10px;
+            border-radius: 5px;
+        }
+        
+        .user-role-badge {
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.75em;
+            font-weight: 500;
+        }
+        
+        .role-admin { background: #e74c3c; color: white; }
+        .role-manager { background: #3498db; color: white; }
+        .role-agent { background: #2ecc71; color: white; }
+        .role-viewer { background: #95a5a6; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-2 d-none d-md-block sidebar">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h4 class="text-white"><i class="bi bi-truck"></i> Delivery System</h4>
+                        <small class="text-muted">Management Portal</small>
+                    </div>
+                    
+                    <!-- User Profile -->
+                    <div class="text-center mb-4 p-3 border-bottom border-secondary">
+                        <div class="mb-2">
+                            <i class="bi bi-person-circle fs-1"></i>
+                        </div>
+                        <h6 class="text-white mb-1" id="userName">Loading...</h6>
+                        <span class="user-role-badge role-viewer" id="userRole">Loading...</span>
+                    </div>
+                    
+                    <ul class="nav flex-column" id="sidebarMenu">
+                        <!-- Menu items will be loaded based on user role -->
+                    </ul>
+                    
+                    <div class="mt-5">
+                        <small class="text-muted">System Status</small>
+                        <div class="mt-2">
+                            {% if system_status.running %}
+                            <span class="badge bg-success">Running</span>
+                            {% else %}
+                            <span class="badge bg-danger">Stopped</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-outline-light w-100 mt-3" onclick="logout()">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </button>
+                    </div>
+                </div>
+            </nav>
+            
+            <!-- Main content -->
+            <main class="col-md-10 ms-sm-auto px-md-4">
+                <!-- Top Navigation -->
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">{% block heading %}Dashboard{% endblock %}</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group me-2">
+                            <span class="text-muted me-3">
+                                <i class="bi bi-calendar"></i> <span id="currentDate">Loading...</span>
+                            </span>
+                            <span class="text-muted">
+                                <i class="bi bi-clock"></i> <span id="currentTime">Loading...</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Content -->
+                <div id="mainContent">
+                    {% block content %}{% endblock %}
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Authentication and Menu JS -->
+    <script>
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthentication();
+            updateDateTime();
+            setInterval(updateDateTime, 60000); // Update time every minute
+            
+            // Check token validity every 5 minutes
+            // setInterval(checkTokenValidity, 300000);
+        });
+        
+        // Check if user is authenticated
+        function checkAuthentication() {
+            const accessToken = localStorage.getItem('access_token');
+            const user = localStorage.getItem('user');
+            
+            if (!accessToken || !user) {
+                // Redirect to login
+                window.location.href = '/auth/login/';
+                return;
+            }
+            
+            try {
+                const userData = JSON.parse(user);
+                updateUserInfo(userData);
+                loadSidebarMenu(userData.role);
+            } catch (error) {
+                console.error('Error parsing user data:', error);
+                logout();
+            }
+        }
+        
+        // Update user information in sidebar
+        function updateUserInfo(userData) {
+            document.getElementById('userName').textContent = 
+                userData.first_name && userData.last_name 
+                ? `${userData.first_name} ${userData.last_name}`
+                : userData.username;
+            
+            const roleBadge = document.getElementById('userRole');
+            roleBadge.textContent = getRoleDisplay(userData.role);
+            roleBadge.className = `user-role-badge role-${userData.role}`;
+        }
+        
+        // Get role display name
+        function getRoleDisplay(role) {
+            const roleMap = {
+                'admin': 'Administrator',
+                'warehouse_manager': 'Warehouse Manager',
+                'delivery_manager': 'Delivery Manager',
+                'agent': 'Delivery Agent',
+                'viewer': 'Viewer'
+            };
+            return roleMap[role] || role;
+        }
+        
+        // Load sidebar menu based on user role
+        function loadSidebarMenu(role) {
+            const menuItems = {
+                admin: [
+                    {name: 'Dashboard', icon: 'bi-speedometer2', url: '/', active: true},
+                    {name: 'Orders', icon: 'bi-box-seam', url: '/orders/'},
+                    {name: 'Agents', icon: 'bi-people', url: '/agents/'},
+                    {name: 'Warehouses', icon: 'bi-building', url: '/warehouses/'},
+                    {name: 'Allocation', icon: 'bi-gear', url: '/allocation/'},
+                    {name: 'Reports', icon: 'bi-bar-chart', url: '/reports/'},
+                    {name: 'Automation', icon: 'bi-play-circle', url: '/automation/'},
+                    {name: 'Users', icon: 'bi-person-badge', url: '/admin/authentication/user/'},
+                    {name: 'Admin Panel', icon: 'bi-shield-lock', url: '/admin/'}
+                ],
+                delivery_manager: [
+                    {name: 'Dashboard', icon: 'bi-speedometer2', url: '/', active: true},
+                    {name: 'Orders', icon: 'bi-box-seam', url: '/orders/'},
+                    {name: 'Agents', icon: 'bi-people', url: '/agents/'},
+                    {name: 'Allocation', icon: 'bi-gear', url: '/allocation/'},
+                    {name: 'Reports', icon: 'bi-bar-chart', url: '/reports/'},
+                    {name: 'Automation', icon: 'bi-play-circle', url: '/automation/'}
+                ],
+                warehouse_manager: [
+                    {name: 'Dashboard', icon: 'bi-speedometer2', url: '/', active: true},
+                    {name: 'Orders', icon: 'bi-box-seam', url: '/orders/'},
+                    {name: 'Agents', icon: 'bi-people', url: '/agents/'},
+                    {name: 'Warehouse', icon: 'bi-building', url: '/warehouses/'},
+                    {name: 'Reports', icon: 'bi-bar-chart', url: '/reports/'}
+                ],
+                agent: [
+                    {name: 'Dashboard', icon: 'bi-speedometer2', url: '/', active: true},
+                    {name: 'My Orders', icon: 'bi-box-seam', url: '/orders/?status=assigned'},
+                    {name: 'My Performance', icon: 'bi-graph-up', url: '/reports/'}
+                ],
+                viewer: [
+                    {name: 'Dashboard', icon: 'bi-speedometer2', url: '/', active: true},
+                    {name: 'Orders', icon: 'bi-box-seam', url: '/orders/'},
+                    {name: 'Reports', icon: 'bi-bar-chart', url: '/reports/'}
+                ]
+            };
+            
+            const menu = menuItems[role] || menuItems.viewer;
+            const sidebar = document.getElementById('sidebarMenu');
+            sidebar.innerHTML = '';
+            
+            menu.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'nav-item';
+                
+                const isActive = window.location.pathname === item.url;
+                
+                li.innerHTML = `
+                    <a class="nav-link ${isActive ? 'active' : ''}" href="${item.url}">
+                        <i class="${item.icon}"></i> ${item.name}
+                    </a>
+                `;
+                
+                sidebar.appendChild(li);
+            });
+        }
+        
+        // Update date and time
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
+            
+            document.getElementById('currentDate').textContent = 
+                now.toLocaleDateString('en-US', dateOptions);
+            document.getElementById('currentTime').textContent = 
+                now.toLocaleTimeString('en-US', timeOptions);
+        }
+        
+        // Check token validity
+        async function checkTokenValidity() {
+            const accessToken = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+            
+            // ADD THIS CHECK
+            if (!accessToken || !refreshToken) {
+                console.log('No tokens found, skipping refresh');
+                return;  // Exit if no tokens
+            }
+
+
+            if (!accessToken) {
+                logout();
+                return;
+            }
+            
+            try {
+                // Try to refresh token
+                const response = await fetch('/auth/api/token/refresh/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        refresh: refreshToken
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('access_token', data.access);
+                } else {
+                    logout();
+                }
+            } catch (error) {
+                console.error('Token refresh failed:', error);
+                logout();
+            }
+        }
+        
+        // Logout function
+        async function logout() {
+            const refreshToken = localStorage.getItem('refresh_token');
+            
+            try {
+                if (refreshToken) {
+                    await fetch('/auth/api/logout/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                        },
+                        body: JSON.stringify({
+                            refresh: refreshToken
+                        })
+                    });
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+            } finally {
+                // Clear local storage
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                localStorage.removeItem('user');
+                
+                // Redirect to login
+                window.location.href = '/auth/login/';
+            }
+        }
+        
+        // Make logout function available globally
+        window.logout = logout;
+        
+        // Show toast notifications
+        function showToast(type, message) {
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-bg-${type} border-0 position-fixed top-0 end-0 m-3`;
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+            
+            setTimeout(() => toast.remove(), 5000);
+        }
+        
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+        
+        // API request interceptor
+        const originalFetch = window.fetch;
+        // window.fetch = async function(...args) {
+        //     const [resource, config = {}] = args;
+            
+        //     // Add Authorization header if we have a token
+        //     const token = localStorage.getItem('access_token');
+        //     if (token && !resource.includes('/auth/api/login/') && !resource.includes('/auth/api/register/')) {
+        //         config.headers = {
+        //             ...config.headers,
+        //             'Authorization': `Bearer ${token}`
+        //         };
+        //     }
+            
+        //     const response = await originalFetch(resource, config);
+            
+        //     // Handle 401 Unauthorized
+        //     if (response.status === 401) {
+        //         try {
+        //             // Try to refresh token
+        //             const refreshToken = localStorage.getItem('refresh_token');
+        //             if (refreshToken) {
+        //                 const refreshResponse = await fetch('/auth/api/token/refresh/', {
+        //                     method: 'POST',
+        //                     headers: {
+        //                         'Content-Type': 'application/json'
+        //                     },
+        //                     body: JSON.stringify({
+        //                         refresh: refreshToken
+        //                     })
+        //                 });
+                        
+        //                 if (refreshResponse.ok) {
+        //                     const data = await refreshResponse.json();
+        //                     localStorage.setItem('access_token', data.access);
+                            
+        //                     // Retry original request with new token
+        //                     config.headers.Authorization = `Bearer ${data.access}`;
+        //                     return originalFetch(resource, config);
+        //                 }
+        //             }
+        //         } catch (error) {
+        //             console.error('Token refresh failed:', error);
+        //         }
+                
+        //         // If refresh fails, logout
+        //         logout();
+        //         return response;
+        //     }
+            
+        //     return response;
+        // };
+    </script>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

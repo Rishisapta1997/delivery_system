@@ -1,0 +1,245 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="text-center">
+                    <i class="bi bi-building dashboard-icon"></i>
+                    <h6 class="text-muted">WAREHOUSES</h6>
+                    <h3 class="highlight-number">{{ total_warehouses }}</h3>
+                    <small class="text-muted">Active locations</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card success">
+            <div class="card-body">
+                <div class="text-center">
+                    <i class="bi bi-people dashboard-icon"></i>
+                    <h6 class="text-muted">AGENTS</h6>
+                    <h3 class="highlight-number">{{ total_agents }}</h3>
+                    <div>
+                        <span class="text-success">{{ checked_in_agents }}</span> checked in
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card warning">
+            <div class="card-body">
+                <div class="text-center">
+                    <i class="bi bi-box-seam dashboard-icon"></i>
+                    <h6 class="text-muted">ORDERS TODAY</h6>
+                    <h3 class="highlight-number">{{ total_orders_today }}</h3>
+                    <small class="text-muted">{{ today }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card danger">
+            <div class="card-body">
+                <div class="text-center">
+                    <i class="bi bi-currency-rupee dashboard-icon"></i>
+                    <h6 class="text-muted">TOTAL COST</h6>
+                    <h3 class="highlight-number">₹{{ daily_summary.total_earnings|floatformat:0 }}</h3>
+                    <small class="text-muted">Today's payout</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-pie-chart"></i> Order Status Distribution
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="orderStatusChart" height="250"></canvas>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-building"></i> Warehouse Performance
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Warehouse</th>
+                                <th>Agents</th>
+                                <th>Today's Orders</th>
+                                <th>Assigned</th>
+                                <th>Pending</th>
+                                <th>Utilization</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in warehouse_stats %}
+                            <tr>
+                                <td>{{ stat.name }}</td>
+                                <td>{{ stat.agent_count }}</td>
+                                <td>{{ stat.order_count }}</td>
+                                <td>{{ stat.assigned_orders }}</td>
+                                <td>{{ stat.order_count|add:"-"|add:stat.assigned_orders }}</td>
+                                <td>
+                                    {% widthratio stat.assigned_orders stat.order_count 100 as utilization %}
+                                    <div class="progress progress-custom">
+                                        <div class="progress-bar bg-success" role="progressbar" 
+                                             style="width: {{ utilization }}%"
+                                             aria-valuenow="{{ utilization }}" aria-valuemin="0" aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                    <small>{{ utilization|floatformat:0 }}%</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-trophy"></i> Top Performers Today
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for agent in top_agents %}
+                <div class="d-flex justify-content-between align-items-center mb-3 p-2 border-bottom">
+                    <div>
+                        <h6 class="mb-1">{{ agent.agent.name }}</h6>
+                        <small class="text-muted">{{ agent.agent.employee_id }}</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-primary">{{ agent.total_orders }} orders</span>
+                        <div>
+                            <small class="text-success">₹{{ agent.total_earnings|floatformat:0 }}</small>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted text-center">No performance data yet</p>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-clock-history"></i> Recent Assignments
+                </h5>
+            </div>
+            <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                {% for assignment in recent_assignments %}
+                <div class="mb-2 p-2 border-bottom">
+                    <div class="d-flex justify-content-between">
+                        <small><strong>{{ assignment.agent.name }}</strong></small>
+                        <small class="text-muted">{{ assignment.assigned_at|time }}</small>
+                    </div>
+                    <small class="text-muted">{{ assignment.order.order_id }}</small>
+                    <div>
+                        <span class="badge bg-light text-dark">
+                            {{ assignment.distance_from_warehouse|floatformat:1 }} km
+                        </span>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted text-center">No assignments yet</p>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-lightning"></i> Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <a href="{% url 'allocation' %}" class="btn btn-primary w-100 mb-2">
+                    <i class="bi bi-gear"></i> Run Allocation
+                </a>
+                <a href="{% url 'orders' %}" class="btn btn-outline-primary w-100 mb-2">
+                    <i class="bi bi-plus-circle"></i> View All Orders
+                </a>
+                <a href="{% url 'reports' %}" class="btn btn-outline-success w-100">
+                    <i class="bi bi-bar-chart"></i> View Reports
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+    const statusData = {{ status_data|safe }};
+    const ctx = document.getElementById('orderStatusChart').getContext('2d');
+    
+    const colors = {
+        'pending': '#ffc107',
+        'assigned': '#17a2b8',
+        'in_transit': '#007bff',
+        'delivered': '#28a745',
+        'deferred': '#dc3545',
+        'cancelled': '#6c757d'
+    };
+    
+    const labels = Object.keys(statusData).map(key => key.charAt(0).toUpperCase() + key.slice(1));
+    const data = Object.values(statusData);
+    const backgroundColors = Object.keys(statusData).map(key => colors[key] || '#6c757d');
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: backgroundColors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.raw + ' orders';
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}
+{% endblock %}

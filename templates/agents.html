@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block content %}
+<div class="content-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-people"></i> Agents Management</h4>
+            <p class="text-muted mb-0">Manage delivery agents and track performance</p>
+        </div>
+        <div>
+            <a href="/admin/delivery/agent/add/" class="btn btn-custom" target="_blank">
+                <i class="bi bi-person-plus"></i> Add New Agent
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" name="search" placeholder="Search agents..." 
+                           value="{{ search_query }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" name="status">
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Agents</option>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active & Checked-in</option>
+                    <option value="not_checked_in" {% if status_filter == 'not_checked_in' %}selected{% endif %}>Not Checked-in</option>
+                    <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" name="warehouse">
+                    <option value="all" {% if warehouse_filter == 'all' %}selected{% endif %}>All Warehouses</option>
+                    {% for warehouse in warehouses %}
+                    <option value="{{ warehouse.id }}" {% if warehouse_filter == warehouse.id|stringformat:"i" %}selected{% endif %}>
+                        {{ warehouse.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-filter"></i> Apply
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="table-container">
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Employee ID</th>
+                    <th>Warehouse</th>
+                    <th>Status</th>
+                    <th>Today's Performance</th>
+                    <th>Contact</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for agent in agents %}
+                <tr>
+                    <td>
+                        <strong>{{ agent.name }}</strong>
+                        <br>
+                        <small class="text-muted">
+                            {% if agent.checkin_time %}
+                            Checked in: {{ agent.checkin_time|time }}
+                            {% else %}
+                            Not checked in
+                            {% endif %}
+                        </small>
+                    </td>
+                    <td>{{ agent.employee_id }}</td>
+                    <td>{{ agent.warehouse.name }}</td>
+                    <td>
+                        {% if agent.is_active %}
+                            {% if agent.checkin_time %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-warning">Not Checked-in</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge bg-danger">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex flex-column">
+                            <small>
+                                <i class="bi bi-box"></i> {{ agent.today_orders }} orders
+                            </small>
+                            <small>
+                                <i class="bi bi-currency-rupee"></i> ₹{{ agent.today_earnings|floatformat:0 }}
+                            </small>
+                            <small>
+                                <i class="bi bi-signpost"></i> {{ agent.today_distance|floatformat:1 }} km
+                            </small>
+                        </div>
+                    </td>
+                    <td>
+                        <small>{{ agent.phone_number }}</small>
+                        <br>
+                        <small class="text-muted">{{ agent.email }}</small>
+                    </td>
+                    <td>
+                        <a href="{% url 'agent_detail' agent.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        <a href="/admin/delivery/agent/{{ agent.id }}/change/" 
+                           class="btn btn-sm btn-outline-secondary" target="_blank">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        {% if agent.is_active and not agent.checkin_time %}
+                        <button class="btn btn-sm btn-outline-success" onclick="checkInAgent({{ agent.id }})">
+                            <i class="bi bi-box-arrow-in-right"></i>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-4">
+                        <i class="bi bi-people display-4 text-muted"></i>
+                        <p class="mt-2">No agents found</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    {% if agents.has_other_pages %}
+    <nav aria-label="Page navigation">
+        <ul class="pagination justify-content-center">
+            {% if agents.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ agents.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                    Previous
+                </a>
+            </li>
+            {% endif %}
+            
+            {% for i in agents.paginator.page_range %}
+                {% if agents.number == i %}
+                <li class="page-item active">
+                    <span class="page-link">{{ i }}</span>
+                </li>
+                {% elif i > agents.number|add:'-3' and i < agents.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ i }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                        {{ i }}
+                    </a>
+                </li>
+                {% endif %}
+            {% endfor %}
+            
+            {% if agents.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ agents.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
+                    Next
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h6 class="card-title">Total Agents</h6>
+                <h3 class="mb-0">{{ agents.paginator.count }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h6 class="card-title">Active & Checked-in</h6>
+                <h3 class="mb-0">{{ checked_in_agents }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <h6 class="card-title">Not Checked-in</h6>
+                <h3 class="mb-0">
+                    {{ agents.paginator.count|add:"-"|add:checked_in_agents }}
+                </h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h6 class="card-title">Today's Total Orders</h6>
+                <h3 class="mb-0">
+                    {{ agents.object_list|sum_attr:"today_orders" }}
+                </h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+    function checkInAgent(agentId) {
+        if (confirm('Check in this agent?')) {
+            fetch(`/api/agent/${agentId}/checkin/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('success', 'Agent checked in successfully');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast('danger', data.message);
+                }
+            })
+            .catch(error => {
+                showToast('danger', 'Error: ' + error);
+            });
+        }
+    }
+    
+    document.querySelectorAll('select[name="status"], select[name="warehouse"]').forEach(select => {
+        select.addEventListener('change', function() {
+            this.form.submit();
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}
